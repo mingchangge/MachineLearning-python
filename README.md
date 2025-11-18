@@ -6,6 +6,7 @@
 python3 -m venv .venv
 ```
 - 激活虚拟环境：
+
     - 在 macOS/Linux 上：
     ```bash
     source .venv/bin/activate
