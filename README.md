@@ -1,6 +1,6 @@
 ## 安装多版本python，在vscode中使用虚拟环境
 
-- 创建虚拟环境，python版本：3.13.11
+- 创建虚拟环境，python版本：3.13.1
 
 ```bash
 python3 -m venv .venv
