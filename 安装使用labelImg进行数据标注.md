@@ -127,7 +127,10 @@ value
     label
     value
     ```
-    这表示 `label` 的类别ID是 `0`，`value` 的类别ID是 `1`。
+    这表示 `label` 的类别ID是 `0`，`value` 的类别ID是 `1`。 
+    
+    > 💡**<font color='red'>重要提醒</font>：类别ID必须从0开始！**
+
 
 3. **单个标注文件的内容**: 打开任意一个 `.txt` 文件，例如 `report_01.txt`，内容会是这样的：
 
