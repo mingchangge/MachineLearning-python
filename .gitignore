@@ -2,3 +2,6 @@ mnist.json
 
 dataset/
 dataset_augmented/
+
+synthetic_ocr_dataset_advanced/
+*.zip
