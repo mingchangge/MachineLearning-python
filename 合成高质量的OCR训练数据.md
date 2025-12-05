@@ -237,13 +237,14 @@ if __name__ == '__main__':
 训练CRNN比调用YOLO框架要复杂一些，因为它需要我们自己定义模型和训练循环。我们将使用 **PyTorch**，这是一个非常灵活且强大的框架。
 
 1.  **准备数据**:
-    *   将您生成的 `synthetic_ocr_dataset` 文件夹压缩成 `.zip`。
+    *   将您生成的 `synthetic_ocr_dataset` 文件夹压缩成 `.zip`。在mac系统可以使用 `zip -r synthetic_ocr_dataset_advanced.zip synthetic_ocr_dataset_advanced` 命令。
     *   在Kaggle上创建一个新的**私有数据集**并上传这个zip文件。
 
 2.  **创建并设置Kaggle Notebook**:
     *   创建一个新的Notebook。
+    *   通过 `+ Add Input` 添加您刚刚创建的合成OCR数据集。
     *   在右侧面板设置 `Accelerator` 为 **GPU**，并 **开启 `Internet`**。
-    *   通过 `+ Add Data` 添加您刚刚创建的合成OCR数据集。
+    
 
 3.  **编写训练代码 (在Notebook单元格中)**:
     这是一个完整的、可运行的PyTorch训练脚本的框架。您只需按顺序将其粘贴到Kaggle Notebook的单元格中即可。
@@ -415,6 +416,305 @@ if __name__ == '__main__':
     # 保存模型
     torch.save(model.state_dict(), '/kaggle/working/crnn_model.pth')
     print("模型已保存到 /kaggle/working/crnn_model.pth")
+    ```
+
+    **完整代码: **
+
+    ```python
+    import os
+    import cv2
+    import torch
+    import torch.nn as nn
+    from torch.utils.data import Dataset, DataLoader, random_split
+    from torchvision import transforms
+    import numpy as np
+    import Levenshtein
+    print("--> 依赖库导入完成。")
+
+
+    # ===================================================================
+    # 阶段二：配置
+    # ===================================================================
+    print("--> 正在配置路径和参数...")
+    INPUT_DATA_DIR = '/kaggle/input/ocr-dataset/synthetic_ocr_dataset_advanced'
+    OUTPUT_DIR = '/kaggle/working/'
+
+    if not os.path.exists(INPUT_DATA_DIR):
+        raise FileNotFoundError(f"错误：无法在 '{INPUT_DATA_DIR}' 找到数据集。")
+    else:
+        print(f"成功找到数据集于: {INPUT_DATA_DIR}")
+
+    CHARSET = "0123456789.%BMI对比上次测量体重公斤脂肪率水分骨骼肌蛋白质肉内脏指数皮下去身年龄型基础代谢活动建议控制偏胖高低标准肥大卡隐形微稍瘦强壮过力发达"
+    char_to_int = {char: i + 1 for i, char in enumerate(CHARSET)}
+    int_to_char = {i + 1: char for i, char in enumerate(CHARSET)}
+    NUM_CLASSES = len(CHARSET) + 1
+
+    IMG_WIDTH = 200
+    IMG_HEIGHT = 32
+    EPOCHS = 75
+    BATCH_SIZE = 128
+    VAL_RATIO = 0.2
+
+    # 早停配置
+    EARLY_STOPPING_PATIENCE = 10  # 连续10轮无改善则停止
+
+
+    # ===================================================================
+    # 阶段三：工具函数
+    # ===================================================================
+    def calculate_cer(pred_text, true_text):
+        if len(true_text) == 0:
+            return 0.0 if len(pred_text) == 0 else 1.0
+        return Levenshtein.distance(pred_text, true_text) / len(true_text)
+
+    def ctc_decode(predictions, int_to_char):
+        preds = predictions.argmax(2).cpu().numpy()
+        texts = []
+        for b in range(preds.shape[1]):
+            seq = preds[:, b]
+            decoded = []
+            prev = 0
+            for idx in seq:
+                if idx != 0 and idx != prev:
+                    decoded.append(int_to_char.get(idx, ''))
+                prev = idx
+            texts.append(''.join(decoded))
+        return texts
+
+
+    # ===================================================================
+    # 阶段四：数据集类
+    # ===================================================================
+    class OCRDataset(Dataset):
+        def __init__(self, data_dir, char_to_int_map, transform=None):
+            self.data_dir = data_dir
+            self.transform = transform
+            self.char_to_int = char_to_int_map
+            self.image_paths = []
+            self.labels = []
+            labels_path = os.path.join(data_dir, 'labels.txt')
+            with open(labels_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    parts = line.strip().split('\t')
+                    if len(parts) != 2:
+                        continue
+                    path, label = parts
+                    self.image_paths.append(os.path.join(self.data_dir, path))
+                    self.labels.append(label)
+
+        def __len__(self):
+            return len(self.image_paths)
+
+        def __getitem__(self, idx):
+            img_path = self.image_paths[idx]
+            label = self.labels[idx]
+            image = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+            if image is None:
+                image = np.zeros((IMG_HEIGHT, IMG_WIDTH), dtype=np.uint8)
+            if self.transform:
+                image = self.transform(image)
+            encoded_label = [self.char_to_int.get(char, 0) for char in label]
+            return {'image': image, 'label': torch.IntTensor(encoded_label), 'label_length': len(encoded_label), 'text': label}
+
+    def collate_fn(batch):
+        # 从batch中提取所有需要的信息
+        images = [item['image'] for item in batch]
+        labels = [item['label'] for item in batch]
+        label_lengths = [item['label_length'] for item in batch] # <-- 保持为Python列表
+        texts = [item['text'] for item in batch]
+
+        # 将图像堆叠成一个批次 (这部分必须是张量)
+        images = torch.stack(images, 0)
+        
+        # 直接返回连接后的标签张量和标签长度的Python列表
+        labels_tensor = torch.cat(labels, 0) # 标签还是需要连接的
+        
+        return images, labels_tensor, label_lengths, texts
+
+
+    # ===================================================================
+    # 阶段五：模型定义
+    # ===================================================================
+    class CRNN(nn.Module):
+        def __init__(self, num_classes):
+            super(CRNN, self).__init__()
+            # CNN部分保持不变，特征提取能力依然强大
+            self.cnn = nn.Sequential(
+                nn.Conv2d(1, 64, 3, 1, 1), nn.ReLU(True), nn.MaxPool2d(2, 2),
+                nn.Conv2d(64, 128, 3, 1, 1), nn.ReLU(True), nn.MaxPool2d(2, 2),
+                nn.Conv2d(128, 256, 3, 1, 1), nn.BatchNorm2d(256), nn.ReLU(True),
+                nn.Conv2d(256, 256, 3, 1, 1), nn.ReLU(True), nn.MaxPool2d((2, 1), (2, 1)),
+                nn.Conv2d(256, 512, 3, 1, 1), nn.BatchNorm2d(512), nn.ReLU(True),
+                nn.Conv2d(512, 512, 3, 1, 1), nn.ReLU(True), nn.MaxPool2d((2, 1), (2, 1)),
+                nn.Conv2d(512, 512, 2, 1, 0), nn.BatchNorm2d(512), nn.ReLU(True)
+            )
+            
+            # --- 关键修改 ---
+            # 使用GRU代替LSTM：GRU参数更少，通常性能相当，且更稳定
+            # 将num_layers从2减少到1：对于这个任务，单层双向GRU/LSTM通常足够
+            self.rnn = nn.GRU(
+                input_size=512, 
+                hidden_size=256, 
+                num_layers=1,         # <--- 修改点 1
+                bidirectional=True, 
+                batch_first=False
+            )
+            
+            self.fc = nn.Linear(512, num_classes) # 双向，所以 256 * 2 = 512
+
+        def forward(self, x):
+            conv = self.cnn(x)
+            b, c, h, w = conv.size()
+            assert h == 1, "特征图高度必须为1"
+            conv = conv.squeeze(2)
+            conv = conv.permute(2, 0, 1) # [seq_len, batch, input_size]
+            
+            # GRU的输出与LSTM略有不同，但对于后续的全连接层是兼容的
+            rnn, _ = self.rnn(conv)
+            
+            output = self.fc(rnn)
+            return output
+
+    # ===================================================================
+    # 阶段六：训练与验证（含早停 + 可视化）
+    # ===================================================================
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(f"--> 使用设备: {device}")
+
+    transform = transforms.Compose([
+        transforms.ToPILImage(),  # 必须！因为 cv2 返回 ndarray
+        transforms.Resize((IMG_HEIGHT, IMG_WIDTH)),
+        transforms.ToTensor(),
+        transforms.Normalize((0.5,), (0.5,))
+    ])
+    full_dataset = OCRDataset(INPUT_DATA_DIR, char_to_int, transform=transform)
+
+    val_size = int(len(full_dataset) * VAL_RATIO)
+    train_size = len(full_dataset) - val_size
+    train_dataset, val_dataset = random_split(full_dataset, [train_size, val_size])
+
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=collate_fn, num_workers=2)
+    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, collate_fn=collate_fn, num_workers=2)
+
+    model = CRNN(NUM_CLASSES).to(device)
+    criterion = nn.CTCLoss(blank=0, reduction='mean', zero_infinity=True).to(device)
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.0005)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5, verbose=True)
+
+
+    best_cer = float('inf')
+    trigger_times = 0
+    best_model_path = os.path.join(OUTPUT_DIR, 'crnn_best_model.pth')
+
+    for epoch in range(EPOCHS):
+        # ========== 训练阶段 ==========
+        model.train()
+        train_loss = 0.0
+        for i, (images_cpu, labels_cpu, label_lengths_list, _) in enumerate(train_loader):
+            # --- 关键修复 ---
+            # 1. 将图像移动到GPU
+            images = images_cpu.to(device)
+            
+            # 2. 将连接好的标签移动到GPU
+            labels = labels_cpu.to(device)                
+            
+            # 3. 将标签长度的Python列表转换为GPU上的LongTensor
+            label_lengths = torch.tensor(label_lengths_list, dtype=torch.long).to(device)
+            
+            # 现在，所有输入criterion的张量都在进入模型前被正确地放在了GPU上
+            
+            preds = model(images)
+            T = preds.size(0)
+            preds_size = torch.full((images.size(0),), T, dtype=torch.long, device=device)
+
+            if epoch == 0 and i == 0:
+                print("--- 诊断信息 ---")
+                print(f"preds device:         {preds.device}")
+                print(f"labels device:        {labels.device}")
+                print(f"preds_size device:    {preds_size.device}")
+                print(f"label_lengths device: {label_lengths.device}")
+                print("------------------")
+
+
+            
+            loss = criterion(preds.log_softmax(2), labels, preds_size, label_lengths)
+            
+            optimizer.zero_grad()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 5)
+            optimizer.step()
+            
+            train_loss += loss.item()
+
+
+        # ========== 验证阶段 ==========
+        model.eval()
+        val_loss = 0.0
+        total_cer = 0.0
+        total_samples = 0
+        all_pred_texts = []
+        all_true_texts = []
+
+        with torch.no_grad():
+            for images_cpu, labels_cpu, label_lengths_list, true_texts in val_loader:
+                # --- 关键修复 (验证循环) ---
+                images = images_cpu.to(device)
+                labels = labels_cpu.to(device)                
+                label_lengths = torch.tensor(label_lengths_list, dtype=torch.long).to(device)
+                
+                preds = model(images)
+                T = preds.size(0)
+                preds_size = torch.full((images.size(0),), T, dtype=torch.long, device=device)
+                
+                loss = criterion(preds.log_softmax(2), labels, preds_size, label_lengths)
+                val_loss += loss.item()
+
+                pred_texts = ctc_decode(preds, int_to_char)
+                all_pred_texts.extend(pred_texts)
+                all_true_texts.extend(true_texts)
+
+                for pred, true in zip(pred_texts, true_texts):
+                    total_cer += calculate_cer(pred, true)
+                    total_samples += 1
+
+        avg_train_loss = train_loss / len(train_loader)
+        avg_val_loss = val_loss / len(val_loader)
+        avg_cer = total_cer / total_samples
+
+        print(f'Epoch [{epoch+1}/{EPOCHS}] '
+            f'Train Loss: {avg_train_loss:.4f} | '
+            f'Val Loss: {avg_val_loss:.4f} | '
+            f'Val CER: {avg_cer:.4f}')
+
+        # ========== 可视化预测样例（每5个epoch）==========
+        if (epoch + 1) % 5 == 0:
+            print("\n🔍 预测样例（验证集随机采样）:")
+            indices = np.random.choice(len(all_pred_texts), size=min(5, len(all_pred_texts)), replace=False)
+            for i in indices:
+                pred_txt = all_pred_texts[i]
+                true_txt = all_true_texts[i]
+                status = "✅" if pred_txt == true_txt else "❌"
+                print(f"  {status} 预测: '{pred_txt}' | 真实: '{true_txt}'")
+            print()
+
+        # ========== 学习率调度 + 早停 ==========
+        scheduler.step(avg_val_loss)
+
+        if avg_cer < best_cer:
+            best_cer = avg_cer
+            trigger_times = 0
+            torch.save(model.state_dict(), best_model_path)
+            print(f"--> 新的最佳模型已保存 (CER: {best_cer:.4f})")
+        else:
+            trigger_times += 1
+            if trigger_times >= EARLY_STOPPING_PATIENCE:
+                print(f"--> ⏹️ 早停触发！已连续 {EARLY_STOPPING_PATIENCE} 轮未提升。")
+                break
+
+    print("--> 训练完成！")
+    print(f"--> 最佳验证 CER: {best_cer:.4f}")
+    print(f"--> 最佳模型已保存至: {best_model_path}")    
     ```
 
 4.  **保存并获取模型**:

@@ -4,4 +4,5 @@ dataset/
 dataset_augmented/
 
 synthetic_ocr_dataset_advanced/
+synthetic_ocr_dataset_final/
 *.zip
