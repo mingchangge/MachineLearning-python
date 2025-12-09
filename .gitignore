@@ -2,7 +2,15 @@ mnist.json
 
 dataset/
 dataset_augmented/
+dataset_augmented2/
 
 synthetic_ocr_dataset_advanced/
 synthetic_ocr_dataset_final/
 *.zip
+
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
