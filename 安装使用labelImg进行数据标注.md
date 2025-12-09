@@ -33,13 +33,12 @@ pip install labelimg
 C:/my_project/
 └── dataset/
     ├── images/            <-- 把你所有的截图都放在这里 (例如 screenshot1.jpg, screenshot2.jpg)
-    ├── labels/            <-- 这个文件夹现在是空的，用来存放标注好的文件
-    └── predefined_classes.txt  <-- 我们将创建这个文件来预定义类别
+    └── labels/            <-- 这个文件夹现在是空的，用来存放标注好的文件
 ```
 
-## 3. 创建类别预定义文件
+## 3. 修改LabelImg类别预定义文件
 
-在 `dataset` 文件夹下，创建一个名为 `predefined_classes.txt` 的文本文件。这个文件的作用是让你在标注时可以直接选择类别，而不用每次都手动输入，可以避免打错字。
+在 LabelImg 项目下，修改 `predefined_classes.txt` 的文本文件。这个文件的作用是让你在标注时可以直接选择类别，而不用每次都手动输入，可以避免打错字。
 
 文件内容只有两行：（因人、项目需求而异）
 
