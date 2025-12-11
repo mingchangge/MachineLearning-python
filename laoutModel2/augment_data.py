@@ -9,11 +9,11 @@ from tqdm import tqdm
 INPUT_DIR = '../dataset/train'
 
 # 输出目录：存放增强后数据的地方
-OUTPUT_DIR = '../dataset_augmented2/train'
+OUTPUT_DIR = '../dataset_augmented_final/train'
 
 # 为每张原始图片生成多少张增强图片
 # 对于40多张的原始图片，生成15-25张增强图是比较合适的起点
-NUM_AUGMENTATIONS_PER_IMAGE = 20
+NUM_AUGMENTATIONS_PER_IMAGE = 25
 
 # --- 2. 定义对文字友好的数据增强流程 ---
 
