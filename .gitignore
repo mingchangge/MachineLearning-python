@@ -3,6 +3,7 @@ mnist.json
 dataset/
 dataset_augmented/
 dataset_augmented2/
+dataset_*/
 
 synthetic_ocr_dataset_advanced/
 synthetic_ocr_dataset_final/
