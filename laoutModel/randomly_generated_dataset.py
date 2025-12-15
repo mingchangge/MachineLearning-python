@@ -2,6 +2,7 @@ import os
 import random
 import shutil
 
+# 随机生成数据集和验证集
 # --- 配置区 ---
 BASE_DIR = "../dataset"
 # 支持的图片扩展名，可以根据需要添加

@@ -5,9 +5,10 @@ import cv2
 import albumentations as A
 import numpy as np
 
+# 第一次训练模型数据增强-最初版
 # --- 配置 ---
-INPUT_DIR = 'dataset'
-OUTPUT_DIR = 'dataset_augmented'
+INPUT_DIR = '../dataset'
+OUTPUT_DIR = '../dataset_augmented'
 # 您希望为每张原始图片生成多少张增强图片
 IMAGES_PER_SOURCE = 80
 

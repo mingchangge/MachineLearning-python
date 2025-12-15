@@ -5,19 +5,20 @@ from PIL import Image, ImageDraw, ImageFont
 import albumentations as A
 import colorsys
 
+# 第一次第一版
 # ==============================
 # 1. 配置
 # ==============================
-OUTPUT_DIR = 'synthetic_ocr_dataset_advanced'
+OUTPUT_DIR = '../synthetic_ocr_dataset_advanced'
 NUM_IMAGES_TO_GENERATE = 10000
 IMAGE_WIDTH = 200
 IMAGE_HEIGHT = 50
 
 # 字体路径（请确保该文件存在）
 FONT_PATHS = [
-    './fonts/vivoSansGlobal-Regular.ttf',
-    './fonts/vivoSansComp400_0.ttf',
-    './fonts/vivoSansComp800_0.ttf'
+    '../fonts/vivoSansGlobal-Regular.ttf',
+    '../fonts/vivoSansComp400_0.ttf',
+    '../fonts/vivoSansComp800_0.ttf'
 ]  # 推荐使用思源黑体或阿里巴巴普惠体
 
 # 字符集（来自健康类App）

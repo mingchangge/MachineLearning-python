@@ -6,30 +6,22 @@ from PIL import Image, ImageDraw, ImageFont
 import albumentations as A
 import colorsys
 import shutil
-
+# 第二次训练文字识别模型最终版
 # ==============================
 # 1. 配置 (Configuration)
 # ==============================
 # --- 基本设置 ---
-OUTPUT_DIR = 'synthetic_ocr_dataset_final'
-NUM_IMAGES_TO_GENERATE = 10000  # 建议生成至少 10,000 张以获得良好效果
+OUTPUT_DIR = '../ocr_dataset_hybrid'
+FONTS_DIR = "../fonts"
+NUM_IMAGES_TO_GENERATE = 30000  # 建议生成至少 10,000 张以获得良好效果
 IMAGE_WIDTH = 256  # 增加宽度以容纳更长的文本和几何变换
 IMAGE_HEIGHT = 64  # 增加高度
 
-# --- 字体资源 ---
-# 将您的字体文件放入一个名为 'fonts' 的子目录中
-FONT_DIR = './fonts/'
-FONT_PATHS = {
-    'regular': os.path.join(FONT_DIR, 'vivoSansGlobal-Regular.ttf'),
-    'comp400': os.path.join(FONT_DIR, 'vivoSansComp400_0.ttf'),
-    'comp800': os.path.join(FONT_DIR, 'vivoSansComp800_0.ttf')
-}
-
 # --- 文本内容模板 (核心优化) ---
-CHARSET = "0123456789.%BMI对比上次测量体重公斤脂肪率水分骨骼肌蛋白质肉内脏指数皮下去身年龄型基础代谢活动建议控制偏胖高低标准肥大卡隐形微稍瘦强壮过力发达"
+CHARSET = "0123456789.%BMI对比上次测量体重公斤脂肪率水分骨骼肌蛋白质肉内脏指数皮下去身年龄型基础代谢活动建议控制偏胖高低标准肥大卡隐形微稍瘦强壮过力发达%()-:（）：-日期健康弱"
 VALUE_TEMPLATES = ["{:.1f}", "{:.2f}", "{}", "{:.1f}%"]
 LABEL_TEMPLATES = ["体重", "BMI", "体脂率", "水分", "骨骼肌", "蛋白质", "内脏脂肪指数", "身体年龄", "基础代谢", "去脂体重", "皮下脂肪"]
-STATUS_TEMPLATES = ["偏胖", "标准", "偏瘦", "正常", "偏高", "偏低", "强壮", "发达", "肥胖型", "肌肉型"]
+STATUS_TEMPLATES = ["偏胖", "标准", "偏瘦", "正常", "偏高", "偏低", "强壮", "发达", "肥胖型", "肌肉型", "健康"]
 UNIT_TEMPLATES = ["公斤", "大卡", "%"]
 
 # --- 视觉样式 ---
@@ -44,6 +36,14 @@ TEXT_COLORS = {
     'light': (255, 255, 255),
     'blue': (68, 108, 141) # App中数值在白色背景下的颜色
 }
+
+# --- 字体资源 ---
+os.makedirs(os.path.join(OUTPUT_DIR, "images"), exist_ok=True)
+FONT_PATHS = [os.path.join(FONTS_DIR, f) for f in os.listdir(FONTS_DIR) if f.endswith(('.ttf', '.otf'))]
+
+if not FONT_PATHS:
+    raise FileNotFoundError(f"在 '{FONTS_DIR}' 目录中未找到任何字体文件。请确保字体文件存在。")
+print(f"✅ 成功加载了 {len(FONT_PATHS)} 种字体。")
 
 # ==============================
 # 2. Albumentations 增强管道 (Augmentation Pipeline)
@@ -93,14 +93,6 @@ def generate_structured_text():
         unit = random.choice(UNIT_TEMPLATES)
         return f"{value} {unit}" # 模拟中间有空格的情况
 
-def get_font_for_text(text):
-    """根据文本内容选择合适的字体"""
-    if any(c.isdigit() for c in text):
-        return random.choice([FONT_PATHS['comp400'], FONT_PATHS['comp800']])
-    elif any(word in text for word in STATUS_TEMPLATES):
-        return FONT_PATHS['comp800']
-    else:
-        return FONT_PATHS['regular']
 
 def is_dark_background(bg_color, threshold=130):
     """使用感知亮度公式判断背景是否为暗色"""
@@ -151,7 +143,7 @@ def generate_synthetic_data_final():
     os.makedirs(images_dir, exist_ok=True)
     labels_file_path = os.path.join(OUTPUT_DIR, 'labels.txt')
 
-    for font_path in FONT_PATHS.values():
+    for font_path in FONT_PATHS:
         if not os.path.exists(font_path):
             raise FileNotFoundError(f"字体文件未找到: {font_path}。请确保'fonts'目录和其中的字体文件存在。")
 
@@ -164,7 +156,7 @@ def generate_synthetic_data_final():
             # 2. 确定样式（颜色，字体）
             base_bg_color = random.choice(BG_COLORS)
             text_color = choose_text_color(text, base_bg_color)
-            font_path = get_font_for_text(text)
+            font_path = random.choice(FONT_PATHS) 
             font_size = random.randint(32, 40)
             font = ImageFont.truetype(font_path, font_size)
             
@@ -194,7 +186,10 @@ def generate_synthetic_data_final():
             # 动态设置 border_mode 的填充颜色为背景色，效果更佳
             transform.transforms[3].border_mode = cv2.BORDER_CONSTANT
             transform.transforms[3].value = bg_color_1 
-            
+            # Perspective变换同样需要设置
+            transform.transforms[4].border_mode = cv2.BORDER_CONSTANT
+            transform.transforms[4].value = bg_color_1
+
             augmented_image_np = transform(image=image_np)['image']
             final_image = Image.fromarray(augmented_image_np)
 

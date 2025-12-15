@@ -3,6 +3,7 @@ import cv2
 import albumentations as A
 from tqdm import tqdm
 
+# 第二次训练模型数据增强
 # --- 1. 配置区域 ---
 
 # 输入目录：你的原始训练数据
