@@ -5,6 +5,7 @@ dataset_augmented/
 dataset_augmented2/
 dataset_*/
 ocr_dataset_*/
+*_dataset
 synthetic_ocr_dataset_advanced/
 synthetic_ocr_dataset_final/
 *.zip
@@ -15,3 +16,5 @@ synthetic_ocr_dataset_final/
 # Python
 __pycache__/
 *.pyc
+
+Label Studio/
