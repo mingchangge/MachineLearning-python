@@ -27,7 +27,7 @@ Label Studio 是一个开源的数据标注工具，支持多种数据类型的�
    ```
 4. 启动 Label Studio：
    ```bash
-   label-studio start
+   label-studio
    ```
 
 ## 使用 Label Studio 进行数据标注
@@ -41,12 +41,22 @@ Label Studio 是一个开源的数据标注工具，支持多种数据类型的�
 
         ```xml
         <View>
-        <Image name="image" value="$image" zoom="true"/>
-        <Header value="请在下方输入图片中的文本:"/>
-        <TextArea name="transcription" toName="image"
-                    rows="1" editable="true"
-                    maxSubmissions="1" required="true"
-                    placeholder="在此输入文本..."/>
+            <Image name="image" value="$image" zoom="true"/>
+            <Header value="1. 选择这张图片的字体类型:"/>
+            <Choices name="font_choice" toName="image"
+                    choice="single" showInLine="true">
+                <Choice value="Heiti" background="blue"/>   <!-- 黑体 -->
+                <Choice value="Songti" background="green"/> <!-- 宋体 -->
+                <Choice value="Xingkai" background="red"/>  <!-- 行楷 -->
+            </Choices>
+            
+            <Header value="2. 在下方输入图片中的文字内容:"/>
+            <TextArea name="transcription" toName="image" 
+                rows="3"
+                editable="true"
+                maxSubmissions="1"
+                placeholder="在此输入文本..."
+            />
         </View>
         ```
     - 点击 "Save"。
