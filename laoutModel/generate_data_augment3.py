@@ -147,8 +147,13 @@ for i in tqdm(range(NUM_IMAGES_TO_GENERATE)):
     # 保存图片和标签
     if labels_for_this_image: # 只有当成功画上了东西才保存
         img_filename = f"hard_sample_{i:04d}.png"
-        background.save(os.path.join(OUTPUT_DIR, f'images/train', img_filename))
-        with open(os.path.join(OUTPUT_DIR, f'labels/train', f"hard_sample_{i:04d}.txt"), 'w') as f:
+        # 【核心升级】: 根据 'split' 变量，保存到正确的 train/val 文件夹
+        img_save_path = os.path.join(OUTPUT_DIR, f'images/{split}', img_filename)
+        background.save(img_save_path)
+        
+        label_filename = f"hard_sample_{i:04d}.txt"
+        label_save_path = os.path.join(OUTPUT_DIR, f'labels/{split}', label_filename)
+        with open(label_save_path, 'w') as f:
             f.write("\n".join(labels_for_this_image))
             
 print(f"🎉 成功生成最终的、无碰撞的专项数据集到 '{OUTPUT_DIR}'！")
